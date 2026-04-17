@@ -3,12 +3,16 @@ import numpy as np
 import streamlit as st
 import joblib
 import os
+import duckdb
 
 # ── PATH HELPER ───────────────────────────────────────────────
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def _p(fname: str) -> str:
     return os.path.join(_ROOT, fname)
+
+def _pq(fname: str) -> pd.DataFrame:
+    return duckdb.execute(f"SELECT * FROM read_parquet('{_p(fname)}')")  .df()
 
 # ── ENCODING FIX ──────────────────────────────────────────────
 def fix_enc(s):
@@ -30,8 +34,8 @@ def fix_cols_encoding(df: pd.DataFrame, cols: list) -> pd.DataFrame:
 def load_master() -> pd.DataFrame:
     """Master dataset: Atracacao JOIN TemposAtracacao JOIN carga_por_atracacao"""
 
-    atrac = pd.read_parquet(_p("Atracacao.parquet"), engine="fastparquet")
-    tempos = pd.read_parquet(_p("TemposAtracacao.parquet"), engine="fastparquet")
+    atrac = _pq("Atracacao.parquet")
+    tempos = _pq("TemposAtracacao.parquet")
 
     # Fix tempo columns that came as string
     for col in ["TEsperaAtracacao", "TEsperaInicioOp", "TEsperaDesatracacao"]:
@@ -40,7 +44,7 @@ def load_master() -> pd.DataFrame:
             errors="coerce",
         )
 
-    carga = pd.read_parquet(_p("carga_por_atracacao.parquet"), engine="fastparquet")
+    carga = _pq("carga_por_atracacao.parquet")
     carga["IDAtracacao"] = pd.to_numeric(carga["IDAtracacao"], errors="coerce")
 
     df = atrac.merge(tempos, on="IDAtracacao", how="left")
@@ -74,7 +78,7 @@ def load_master() -> pd.DataFrame:
 
 @st.cache_data(show_spinner="Carregando hidrovias...")
 def load_hidrovia() -> pd.DataFrame:
-    df = pd.read_parquet(_p("carga_hidrovia_anual.parquet"), engine="fastparquet")
+    df = _pq("carga_hidrovia_anual.parquet")
     df = fix_cols_encoding(df, ["Hidrovia", "Região Geográfica", "UF"])
     df["Ano"] = pd.to_numeric(df["Ano"], errors="coerce").astype("Int64")
     df["tonelagem_total"] = pd.to_numeric(df["tonelagem_total"], errors="coerce")
@@ -92,7 +96,7 @@ def load_model():
 
 @st.cache_data
 def load_shap():
-    imp = pd.read_parquet(_p("shap_importance.parquet"), engine="fastparquet")
+    imp = _pq("shap_importance.parquet")
     return imp
 
 
