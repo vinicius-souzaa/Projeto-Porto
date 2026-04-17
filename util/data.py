@@ -30,8 +30,8 @@ def fix_cols_encoding(df: pd.DataFrame, cols: list) -> pd.DataFrame:
 def load_master() -> pd.DataFrame:
     """Master dataset: Atracacao JOIN TemposAtracacao JOIN carga_por_atracacao"""
 
-    atrac = pd.read_parquet(_p("Atracacao.parquet"))
-    tempos = pd.read_parquet(_p("TemposAtracacao.parquet"))
+    atrac = pd.read_parquet(_p("Atracacao.parquet"), engine="fastparquet")
+    tempos = pd.read_parquet(_p("TemposAtracacao.parquet"), engine="fastparquet")
 
     # Fix tempo columns that came as string
     for col in ["TEsperaAtracacao", "TEsperaInicioOp", "TEsperaDesatracacao"]:
@@ -40,7 +40,7 @@ def load_master() -> pd.DataFrame:
             errors="coerce",
         )
 
-    carga = pd.read_parquet(_p("carga_por_atracacao.parquet"))
+    carga = pd.read_parquet(_p("carga_por_atracacao.parquet"), engine="fastparquet")
     carga["IDAtracacao"] = pd.to_numeric(carga["IDAtracacao"], errors="coerce")
 
     df = atrac.merge(tempos, on="IDAtracacao", how="left")
@@ -74,7 +74,7 @@ def load_master() -> pd.DataFrame:
 
 @st.cache_data(show_spinner="Carregando hidrovias...")
 def load_hidrovia() -> pd.DataFrame:
-    df = pd.read_parquet(_p("carga_hidrovia_anual.parquet"))
+    df = pd.read_parquet(_p("carga_hidrovia_anual.parquet"), engine="fastparquet")
     df = fix_cols_encoding(df, ["Hidrovia", "Região Geográfica", "UF"])
     df["Ano"] = pd.to_numeric(df["Ano"], errors="coerce").astype("Int64")
     df["tonelagem_total"] = pd.to_numeric(df["tonelagem_total"], errors="coerce")
@@ -92,7 +92,7 @@ def load_model():
 
 @st.cache_data
 def load_shap():
-    imp = pd.read_parquet(_p("shap_importance.parquet"))
+    imp = pd.read_parquet(_p("shap_importance.parquet"), engine="fastparquet")
     return imp
 
 
