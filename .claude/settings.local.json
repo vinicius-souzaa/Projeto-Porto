@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c 'import ast, sys *)",
+      "Bash(git rm *)",
+      "Bash(rm -rf portos/.git)",
+      "Bash(rm -rf portos_temp/portos/.git)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git pull *)",
+      "Bash(git stash *)",
+      "Bash(git rebase *)",
+      "Bash(git push *)",
+      "Bash(GIT_EDITOR=true git rebase --continue)"
+    ]
+  }
+}
