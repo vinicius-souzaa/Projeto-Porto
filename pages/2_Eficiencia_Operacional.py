@@ -72,7 +72,7 @@ fig = px.line(
 )
 fig.add_vline(x=2020, line_dash="dash", line_color="red",
               annotation_text="COVID-19")
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 # ── Distribuição por histograma ───────────────────────────────────────────────
 col1, col2 = st.columns(2)
@@ -84,7 +84,7 @@ with col1:
                         labels={"value": "Horas", "count": "Frequência"})
     fig2.add_vline(x=float(estadia_ok.median()), line_dash="dash",
                    annotation_text=f"Mediana: {estadia_ok.median():.1f}h")
-    st.plotly_chart(fig2, use_container_width=True)
+    st.plotly_chart(fig2, width="stretch")
 
 op_ok = df_f["TOperacao"].dropna()
 op_ok = op_ok[op_ok.between(0, op_ok.quantile(0.99))]
@@ -93,7 +93,7 @@ with col2:
                         labels={"value": "Horas", "count": "Frequência"})
     fig3.add_vline(x=float(op_ok.median()), line_dash="dash",
                    annotation_text=f"Mediana: {op_ok.median():.1f}h")
-    st.plotly_chart(fig3, use_container_width=True)
+    st.plotly_chart(fig3, width="stretch")
 
 # ── Box plot por tipo de navegação ────────────────────────────────────────────
 nav_grp = df_f[df_f["TEstadia"].notna() & df_f["TEstadia"].between(0, 500)]
@@ -101,7 +101,7 @@ fig4 = px.box(nav_grp, x="Tipo de Navegação da Atracação", y="TEstadia",
               title="Estadia por tipo de navegação",
               labels={"TEstadia": "Estadia (h)",
                       "Tipo de Navegação da Atracação": "Navegação"})
-st.plotly_chart(fig4, use_container_width=True)
+st.plotly_chart(fig4, width="stretch")
 
 # ── Top 20 portos: estadia média ──────────────────────────────────────────────
 top_porto = (
@@ -115,4 +115,4 @@ top_porto = (
 fig5 = px.bar(top_porto, x="mean", y="Porto Atracação", orientation="h",
               title="Top 20 portos por estadia média (mín. 100 atracações)",
               labels={"mean": "Estadia média (h)", "Porto Atracação": ""})
-st.plotly_chart(fig5, use_container_width=True)
+st.plotly_chart(fig5, width="stretch")

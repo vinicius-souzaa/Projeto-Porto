@@ -71,13 +71,13 @@ with col1:
                  title="Tempo total de paralisação por ano (h)",
                  color="tempo_paralisacao", color_continuous_scale="Reds")
     fig.update_coloraxes(showscale=False)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 with col2:
     fig2 = px.line(anual, x="Ano", y="paralisacoes_por_100", markers=True,
                    title="Paralisações por 100 atracações",
                    labels={"paralisacoes_por_100": "Paralisações/100 atr."})
-    st.plotly_chart(fig2, use_container_width=True)
+    st.plotly_chart(fig2, width="stretch")
 
 # ── Por porto ─────────────────────────────────────────────────────────────────
 por_porto = (
@@ -95,7 +95,7 @@ fig3 = px.bar(por_porto, x="tempo_total", y="Porto Atracação", orientation="h"
               labels={"tempo_total": "Horas", "Porto Atracação": ""},
               color="tempo_total", color_continuous_scale="Reds")
 fig3.update_coloraxes(showscale=False)
-st.plotly_chart(fig3, use_container_width=True)
+st.plotly_chart(fig3, width="stretch")
 
 # ── Relação paralisação × estadia ─────────────────────────────────────────────
 scatter_df = df_f[
@@ -109,4 +109,4 @@ fig4 = px.scatter(
     title="Relação: tempo de paralisação × estadia total",
     labels={"tempo_paralisacao": "Paralisação (h)", "TEstadia": "Estadia (h)"},
 )
-st.plotly_chart(fig4, use_container_width=True)
+st.plotly_chart(fig4, width="stretch")

@@ -85,14 +85,14 @@ if silver:
         "Colunas":     s["n_colunas"],
         "Tamanho (MB)":s["tamanho_mb"],
     } for s in silver])
-    st.dataframe(silver_df, use_container_width=True, hide_index=True)
+    st.dataframe(silver_df, width="stretch", hide_index=True)
 
     tipo_sel = st.selectbox("Inspecionar tipo Silver", [s["tipo"] for s in silver])
     entry_s = next(s for s in silver if s["tipo"] == tipo_sel)
     col_df = pd.DataFrame(entry_s["colunas"])
     st.dataframe(
         col_df.style.background_gradient(subset=["nulos_pct"], cmap="Reds"),
-        use_container_width=True, hide_index=True,
+        width="stretch", hide_index=True,
     )
 
 st.divider()
@@ -108,14 +108,14 @@ if gold:
         "Tamanho (MB)": g["tamanho_mb"],
         "Período":      f"{g.get('ano_min','?')}–{g.get('ano_max','?')}",
     } for g in gold])
-    st.dataframe(gold_df, use_container_width=True, hide_index=True)
+    st.dataframe(gold_df, width="stretch", hide_index=True)
 
     nome_sel = st.selectbox("Inspecionar tabela Gold", [g["nome"] for g in gold])
     entry_g = next(g for g in gold if g["nome"] == nome_sel)
     col_df2 = pd.DataFrame(entry_g["colunas"])
     st.dataframe(
         col_df2.style.background_gradient(subset=["nulos_pct"], cmap="Reds"),
-        use_container_width=True, hide_index=True,
+        width="stretch", hide_index=True,
     )
 
 # ── Quality score por tabela ──────────────────────────────────────────────────
@@ -138,4 +138,4 @@ if scores:
                  labels={"Score": "Score", "Tabela": ""},
                  color_discrete_map={"silver": "#aac", "gold": "#fa0"})
     fig.add_vline(x=80, line_dash="dash", annotation_text="Meta 80")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")

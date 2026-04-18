@@ -97,7 +97,7 @@ fig = px.scatter_mapbox(
     labels={"regiao": "Região"},
 )
 fig.update_layout(height=650, margin={"r": 0, "t": 40, "l": 0, "b": 0})
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 # ── Tabela de perfis ──────────────────────────────────────────────────────────
 st.subheader("Perfil operacional por porto")
@@ -122,6 +122,6 @@ st.dataframe(
             "Peso médio (t)": "{:,.0f}",
             "% conteiner": "{:.1%}",
         }),
-    use_container_width=True,
+    width="stretch",
     height=400,
 )

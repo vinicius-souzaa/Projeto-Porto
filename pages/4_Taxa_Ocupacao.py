@@ -69,7 +69,7 @@ fig = px.line(
     labels={taxa_col: "Taxa de Ocupação", porto_col: "Porto"},
 )
 fig.update_yaxes(tickformat=".0%")
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 # ── Heatmap porto × ano ───────────────────────────────────────────────────────
 pivot = df_f.pivot_table(index=porto_col, columns="Ano", values=taxa_col, aggfunc="mean")
@@ -81,7 +81,7 @@ fig2 = px.imshow(
     aspect="auto",
 )
 fig2.update_coloraxes(colorbar_tickformat=".0%")
-st.plotly_chart(fig2, use_container_width=True)
+st.plotly_chart(fig2, width="stretch")
 
 # ── Ranking último ano ────────────────────────────────────────────────────────
 ultimo_ano = int(df_f["Ano"].max())
@@ -99,4 +99,4 @@ fig3 = px.bar(
 )
 fig3.update_xaxes(tickformat=".0%")
 fig3.update_coloraxes(showscale=False)
-st.plotly_chart(fig3, use_container_width=True)
+st.plotly_chart(fig3, width="stretch")

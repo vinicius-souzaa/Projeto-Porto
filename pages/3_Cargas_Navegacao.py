@@ -67,14 +67,14 @@ with col1:
     fig = px.area(anual, x="Ano", y=["peso_total", "peso_cont"],
                   title="Carga total vs conteinerizada (t)",
                   labels={"value": "Toneladas", "variable": "Tipo"})
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 with col2:
     fig2 = px.bar(anual, x="Ano", y="teu_total",
                   title="TEUs movimentados por ano",
                   color="teu_total", color_continuous_scale="Teal")
     fig2.update_coloraxes(showscale=False)
-    st.plotly_chart(fig2, use_container_width=True)
+    st.plotly_chart(fig2, width="stretch")
 
 # ── Por tipo de navegação ─────────────────────────────────────────────────────
 nav = df_f.groupby(["Ano", "Tipo de Navegação da Atracação"])["peso_total"].sum().reset_index()
@@ -83,7 +83,7 @@ fig3 = px.bar(nav, x="Ano", y="peso_total", color="Tipo de Navegação da Atraca
               title="Carga por tipo de navegação",
               labels={"peso_total": "Toneladas",
                       "Tipo de Navegação da Atracação": "Navegação"})
-st.plotly_chart(fig3, use_container_width=True)
+st.plotly_chart(fig3, width="stretch")
 
 # ── Sentido ───────────────────────────────────────────────────────────────────
 if "sentido_top" in df_f.columns:
@@ -93,7 +93,7 @@ if "sentido_top" in df_f.columns:
     with col3:
         fig4 = px.pie(sentido, names="Sentido", values="Peso (t)",
                       title="Carga por sentido", hole=0.4)
-        st.plotly_chart(fig4, use_container_width=True)
+        st.plotly_chart(fig4, width="stretch")
 
 # ── Hidrovias ─────────────────────────────────────────────────────────────────
 if not hidrovia.empty:
@@ -106,4 +106,4 @@ if not hidrovia.empty:
         fig5 = px.line(hid_anual, x="Ano", y="tonelagem_total", color="Hidrovia",
                        markers=True, title="Tonelagem por hidrovia (anual)",
                        labels={"tonelagem_total": "Toneladas"})
-        st.plotly_chart(fig5, use_container_width=True)
+        st.plotly_chart(fig5, width="stretch")

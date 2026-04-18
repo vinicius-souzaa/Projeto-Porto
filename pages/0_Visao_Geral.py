@@ -66,7 +66,7 @@ with col1:
                  color="atracacoes", color_continuous_scale="Blues",
                  labels={"atracacoes": "Atracações"})
     fig.update_coloraxes(showscale=False)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 with col2:
     fig2 = px.line(anual, x="Ano", y="estadia_media",
@@ -75,24 +75,24 @@ with col2:
                    labels={"estadia_media": "Estadia média (h)"})
     fig2.add_vline(x=2020, line_dash="dash", line_color="red",
                    annotation_text="COVID-19")
-    st.plotly_chart(fig2, use_container_width=True)
+    st.plotly_chart(fig2, width="stretch")
 
 # ── Peso movimentado ──────────────────────────────────────────────────────────
 fig3 = px.area(anual, x="Ano", y="peso_total",
                title="Carga movimentada total (toneladas)",
                labels={"peso_total": "Toneladas"})
-st.plotly_chart(fig3, use_container_width=True)
+st.plotly_chart(fig3, width="stretch")
 
 # ── Mix por tipo de navegação ─────────────────────────────────────────────────
 nav = df_f.groupby(["Ano", "Tipo de Navegação da Atracação"])["IDAtracacao"].count().reset_index()
 nav.columns = ["Ano", "Navegação", "Atracações"]
 fig4 = px.bar(nav, x="Ano", y="Atracações", color="Navegação", barmode="stack",
               title="Atracações por tipo de navegação")
-st.plotly_chart(fig4, use_container_width=True)
+st.plotly_chart(fig4, width="stretch")
 
 # ── Por região ────────────────────────────────────────────────────────────────
 reg = df_f.groupby("Região Geográfica")["IDAtracacao"].count().reset_index()
 reg.columns = ["Região", "Atracações"]
 fig5 = px.pie(reg, names="Região", values="Atracações",
               title="Distribuição por região geográfica", hole=0.4)
-st.plotly_chart(fig5, use_container_width=True)
+st.plotly_chart(fig5, width="stretch")

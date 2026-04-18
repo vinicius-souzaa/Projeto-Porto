@@ -68,14 +68,14 @@ with col1:
                  title="Atracações médias por mês (todos os anos)",
                  labels={"Mes_Nome": "Mês", "atracacoes": "Atracações"},
                  category_orders={"Mes_Nome": MESES})
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 with col2:
     fig2 = px.line(sazonal, x="Mes_Nome", y="estadia_media", markers=True,
                    title="Estadia média por mês",
                    labels={"Mes_Nome": "Mês", "estadia_media": "Estadia (h)"},
                    category_orders={"Mes_Nome": MESES})
-    st.plotly_chart(fig2, use_container_width=True)
+    st.plotly_chart(fig2, width="stretch")
 
 # ── Série temporal mensal ─────────────────────────────────────────────────────
 mensal = (
@@ -91,7 +91,7 @@ fig3 = px.line(mensal, x="AnoMes", y="atracacoes",
 # Marca período COVID
 fig3.add_vrect(x0="2020-03", x1="2021-06", fillcolor="red", opacity=0.1,
                annotation_text="COVID-19", annotation_position="top left")
-st.plotly_chart(fig3, use_container_width=True)
+st.plotly_chart(fig3, width="stretch")
 
 # ── Análise pré vs pós COVID ──────────────────────────────────────────────────
 st.subheader("Comparação Pré × Durante × Pós COVID")
@@ -112,13 +112,13 @@ with col3:
     fig4 = px.bar(covid_cmp, x="Periodo", y="atracacoes", color="Periodo",
                   title="Atracações por período",
                   labels={"Periodo": "", "atracacoes": "Atracações"})
-    st.plotly_chart(fig4, use_container_width=True)
+    st.plotly_chart(fig4, width="stretch")
 
 with col4:
     fig5 = px.bar(covid_cmp, x="Periodo", y="estadia_media", color="Periodo",
                   title="Estadia média por período (h)",
                   labels={"Periodo": "", "estadia_media": "Horas"})
-    st.plotly_chart(fig5, use_container_width=True)
+    st.plotly_chart(fig5, width="stretch")
 
 # ── Heatmap mes × ano ─────────────────────────────────────────────────────────
 heat = df_f.pivot_table(index="Mes", columns="Ano", values="IDAtracacao",
@@ -128,4 +128,4 @@ fig6 = px.imshow(heat, color_continuous_scale="Blues",
                  title="Heatmap de atracações: mês × ano",
                  labels={"color": "Atracações", "x": "Ano", "y": "Mês"},
                  aspect="auto")
-st.plotly_chart(fig6, use_container_width=True)
+st.plotly_chart(fig6, width="stretch")

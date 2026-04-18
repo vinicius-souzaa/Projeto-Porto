@@ -61,7 +61,7 @@ if not shap_imp.empty:
                  labels={col_feat: "", col_imp: "|SHAP| médio"},
                  color=col_imp, color_continuous_scale="Blues")
     fig.update_coloraxes(showscale=False)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 # ── Performance por subgrupo ──────────────────────────────────────────────────
 subgrupos = meta.get("metricas_subgrupo", {})
@@ -69,7 +69,7 @@ if subgrupos:
     st.subheader("Performance por subgrupo")
     subg_df = pd.DataFrame(subgrupos).T.reset_index()
     subg_df.columns = ["Grupo"] + list(subg_df.columns[1:])
-    st.dataframe(subg_df, use_container_width=True)
+    st.dataframe(subg_df, width="stretch")
 
 st.divider()
 
@@ -181,7 +181,7 @@ if st.button("Prever", type="primary"):
                 "threshold": {"line": {"color": "red", "width": 4}, "value": pred_q90}
             }
         ))
-        st.plotly_chart(fig_g, use_container_width=True)
+        st.plotly_chart(fig_g, width="stretch")
 
     except (ImportError, ModuleNotFoundError) as e:
         st.warning(

@@ -65,7 +65,7 @@ fig = px.bar(
 )
 if metrica == "pct_conteiner":
     fig.update_xaxes(tickformat=".0%")
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 # ── Spider / Radar chart ──────────────────────────────────────────────────────
 st.subheader("Comparação radar — selecione até 5 portos")
@@ -95,7 +95,7 @@ if portos_sel:
         polar=dict(radialaxis=dict(visible=True, range=[0, 1])),
         title="Radar: perfil comparativo (normalizado)"
     )
-    st.plotly_chart(fig_r, use_container_width=True)
+    st.plotly_chart(fig_r, width="stretch")
 
 # ── Evolução anual dos top portos ─────────────────────────────────────────────
 st.subheader("Evolução histórica — top 10 por volume")
@@ -105,7 +105,7 @@ evol = master[master["Porto Atracação"].isin(top10)].groupby(
 evol.columns = ["Ano", "Porto", "Atracações"]
 fig2 = px.line(evol, x="Ano", y="Atracações", color="Porto", markers=True,
                title="Atracações por ano — top 10 portos")
-st.plotly_chart(fig2, use_container_width=True)
+st.plotly_chart(fig2, width="stretch")
 
 # ── Scatter volume × eficiência ───────────────────────────────────────────────
 fig3 = px.scatter(
@@ -117,4 +117,4 @@ fig3 = px.scatter(
             "regiao": "Região"},
     log_x=True,
 )
-st.plotly_chart(fig3, use_container_width=True)
+st.plotly_chart(fig3, width="stretch")
