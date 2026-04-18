@@ -1,1 +1,2 @@
-# Large pipeline-only files kept out of git entirely (see .gitignore)
+# Sem Git LFS — arquivos grandes ficam no HuggingFace Hub (vinicius-souza/antaq)
+* text=auto

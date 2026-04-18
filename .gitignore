@@ -1,4 +1,30 @@
+# Dados brutos (grandes demais para git)
+Dados/
 
-# Pipeline-only files too large for GitHub (>100MB)
-Carga.parquet
-Carga_Conteinerizada.parquet
+# Artefatos do pipeline gerados localmente
+parquet/
+*.parquet
+*.pkl
+*.json
+
+# Cache HF Hub
+.cache/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# IDEs
+.vscode/
+.idea/
+
+# Logs do pipeline
+pipeline/logs/
+
+# OS
+.DS_Store
+Thumbs.db
