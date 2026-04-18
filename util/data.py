@@ -2,8 +2,8 @@
 util/data.py — Data access layer
 =================================
 Downloads Gold/Model artifacts from HuggingFace Hub (vinicius-souza/antaq)
-with local file-system caching. All parquet reads go through DuckDB so
-there is no pyarrow/cmake dependency on the host.
+with local file-system caching. Parquet reads use pyarrow (always available
+as a Streamlit dependency, stable on Python 3.14+).
 """
 
 import json
@@ -11,8 +11,8 @@ import logging
 import os
 from pathlib import Path
 
-import duckdb
 import pandas as pd
+import pyarrow.parquet as pq
 
 HF_REPO      = "vinicius-souza/antaq"
 HF_REPO_TYPE = "dataset"
@@ -53,12 +53,13 @@ def _hf_path(remote: str) -> Path:
 
 
 def _pq(remote: str, limit: int | None = None) -> pd.DataFrame:
-    """Read a remote parquet file via DuckDB (no pyarrow needed)."""
-    path = str(_hf_path(remote))
-    sql = f"SELECT * FROM read_parquet('{path}')"
+    """Read a remote parquet file via pyarrow."""
+    path = _hf_path(remote)
+    table = pq.read_table(str(path))
+    df = table.to_pandas()
     if limit:
-        sql += f" LIMIT {limit}"
-    return duckdb.execute(sql).df()
+        df = df.head(limit)
+    return df
 
 
 def _json(remote: str) -> dict:
