@@ -182,13 +182,14 @@ def _metrics_por_subgrupo(model, X: pd.DataFrame, y_true: pd.Series,
 
 
 def _treinar_quantile(X_train: pd.DataFrame, y_train: pd.Series,
-                       X_test: pd.DataFrame, quantile: float) -> XGBRegressor:
+                       X_test: pd.DataFrame, y_test: pd.Series,
+                       quantile: float) -> XGBRegressor:
     """Treina modelo de regressão quantílica para intervalos de confiança."""
     model = XGBRegressor(
         **{**XGB_PARAMS, "objective": "reg:quantileerror",
            "quantile_alpha": quantile, "n_estimators": 400},
     )
-    model.fit(X_train, y_train, eval_set=[(X_test, y_test := y_train)], verbose=False)
+    model.fit(X_train, y_train, eval_set=[(X_test, y_test)], verbose=False)
     return model
 
 
@@ -211,7 +212,7 @@ def _calc_shap(model, X: pd.DataFrame, feat_cols: list[str],
 
 
 def treinar_target(df: pd.DataFrame, target: str,
-                   skip_lgbm: bool = False) -> dict:
+                   skip_lgbm: bool = False, skip_cv: bool = False) -> dict:
     """Treina XGBoost (+ LightGBM opcional) para um target."""
     log.info("=" * 60)
     log.info("TARGET: %s", target)
@@ -233,9 +234,13 @@ def treinar_target(df: pd.DataFrame, target: str,
     xgb.fit(X_train, y_train, eval_set=[(X_test, y_test)], verbose=False)
     pred_xgb = xgb.predict(X_test)
     result["xgb_test"] = _metrics(y_test.values, pred_xgb, "XGB test")
-    result["xgb_cv"]   = _cv_temporal(
-        XGBRegressor(**XGB_PARAMS), X, y, df
-    )
+    if not skip_cv:
+        result["xgb_cv"] = _cv_temporal(
+            XGBRegressor(**XGB_PARAMS), X, y, df
+        )
+    else:
+        log.info("  CV pulado (--skip-cv)")
+        result["xgb_cv"] = {}
 
     # ── LightGBM ─────────────────────────────────────────────────────────────
     if not skip_lgbm:
@@ -253,8 +258,8 @@ def treinar_target(df: pd.DataFrame, target: str,
 
     # ── Quantile regression ───────────────────────────────────────────────────
     log.info("Treinando modelos quantílicos (P10/P90)...")
-    q10 = _treinar_quantile(X_train, y_train, X_test, 0.10)
-    q90 = _treinar_quantile(X_train, y_train, X_test, 0.90)
+    q10 = _treinar_quantile(X_train, y_train, X_test, y_test, 0.10)
+    q90 = _treinar_quantile(X_train, y_train, X_test, y_test, 0.90)
     result["q10_model"] = q10
     result["q90_model"] = q90
 
@@ -277,7 +282,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--target", choices=["TEstadia", "TOperacao", "ambos"],
                         default="ambos")
-    parser.add_argument("--skip-lgbm", action="store_true")
+    parser.add_argument("--skip-lgbm", action="store_true",
+                        help="Pula treinamento LightGBM")
+    parser.add_argument("--skip-cv", action="store_true",
+                        help="Pula cross-validation (mais rápido)")
     args = parser.parse_args()
 
     inicio = datetime.now(timezone.utc)
@@ -288,7 +296,8 @@ def main():
 
     resultados = {}
     for t in targets:
-        resultados[t] = treinar_target(df, t, skip_lgbm=args.skip_lgbm)
+        resultados[t] = treinar_target(df, t, skip_lgbm=args.skip_lgbm,
+                                       skip_cv=args.skip_cv)
 
     # ── Salva modelos ─────────────────────────────────────────────────────────
     log.info("Salvando modelos...")

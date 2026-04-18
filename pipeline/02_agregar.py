@@ -51,7 +51,9 @@ def _read_silver(tipo: str) -> pd.DataFrame:
     if not path.exists() or not list(path.glob("ano=*/data.parquet")):
         raise FileNotFoundError(f"Silver não encontrado para tipo '{tipo}'. Execute 01_converter.py primeiro.")
     log.info("  Lendo Silver: %s", tipo)
-    df = duckdb.execute(f"SELECT * FROM read_parquet('{glob}', hive_partitioning=true)").df()
+    df = duckdb.execute(
+        f"SELECT * FROM read_parquet('{glob}', hive_partitioning=true, union_by_name=true)"
+    ).df()
     log.info("    → %d linhas | %d colunas", len(df), len(df.columns))
     return df
 
@@ -67,40 +69,72 @@ def _save_gold(df: pd.DataFrame, nome: str) -> Path:
 
 # ── Tabelas Gold ──────────────────────────────────────────────────────────────
 
+def _detect_col(real_cols: list[str], candidates: list[str]) -> str | None:
+    """Retorna o primeiro nome de coluna candidato que exista no schema real."""
+    for c in candidates:
+        if c in real_cols:
+            return c
+    return None
+
+
 def build_carga_por_atracacao() -> pd.DataFrame:
-    """Agrega Carga + Carga_Conteinerizada por IDAtracacao."""
+    """Agrega Carga + Carga_Conteinerizada por IDAtracacao — GROUP BY no DuckDB."""
     log.info("Construindo: carga_por_atracacao")
 
-    carga = _read_silver("Carga")
-    carga["IDAtracacao"] = pd.to_numeric(carga["IDAtracacao"], errors="coerce")
-    carga["VLPesoCargaBruta"] = pd.to_numeric(carga.get("VLPesoCargaBruta", 0), errors="coerce").fillna(0)
-    carga["TEU"] = pd.to_numeric(carga.get("TEU", 0), errors="coerce").fillna(0)
+    path_carga = SILVER / "Carga"
+    if not path_carga.exists() or not list(path_carga.glob("ano=*/data.parquet")):
+        raise FileNotFoundError("Silver Carga não encontrado.")
 
-    grp = carga.groupby("IDAtracacao").agg(
-        peso_total   = ("VLPesoCargaBruta", "sum"),
-        teu_total    = ("TEU", "sum"),
-        n_cargas     = ("IDAtracacao", "count"),
-        natureza_top = ("CDNaturezaCarga",
-                        lambda x: x.mode().iloc[0] if len(x) > 0 else None),
-        sentido_top  = ("Sentido",
-                        lambda x: x.mode().iloc[0] if len(x) > 0 else None),
-    ).reset_index()
+    glob_carga = str(path_carga / "ano=*" / "data.parquet")
 
-    # Acrescenta peso conteinerizado
-    try:
-        cont = _read_silver("Carga_Conteinerizada")
-        cont["IDAtracacao"] = pd.to_numeric(cont["IDAtracacao"], errors="coerce")
-        cont["VLPesoCargaConteinerizada"] = pd.to_numeric(
-            cont.get("VLPesoCargaConteinerizada", 0), errors="coerce"
-        ).fillna(0)
-        cont_grp = cont.groupby("IDAtracacao").agg(
-            peso_cont=("VLPesoCargaConteinerizada", "sum")
-        ).reset_index()
+    # Descobre colunas reais do Silver (schema pode variar entre anos)
+    real_cols = duckdb.execute(
+        f"DESCRIBE SELECT * FROM read_parquet('{glob_carga}', "
+        f"hive_partitioning=true, union_by_name=true) LIMIT 0"
+    ).df()["column_name"].tolist()
+    log.info("  Colunas Carga detectadas: %s", real_cols)
+
+    peso_col    = _detect_col(real_cols, ["VLPesoCargaBruta", "Peso Bruto (t)", "VLPeso"])
+    teu_col     = _detect_col(real_cols, ["TEU", "QTCarga"])
+    natureza_col = _detect_col(real_cols, ["CDNaturezaCarga", "STNaturezaCarga",
+                                            "Natureza da Carga", "NaturezaCarga"])
+    sentido_col  = _detect_col(real_cols, ["Sentido", "SentidoCarga", "CDSentido"])
+
+    peso_expr    = f'SUM(TRY_CAST("{peso_col}" AS DOUBLE))'    if peso_col    else "0.0"
+    teu_expr     = f'SUM(TRY_CAST("{teu_col}" AS DOUBLE))'     if teu_col     else "0.0"
+    natureza_expr = f'MODE("{natureza_col}")'                  if natureza_col else "NULL"
+    sentido_expr  = f'MODE("{sentido_col}")'                   if sentido_col  else "NULL"
+
+    grp = duckdb.execute(f"""
+        SELECT
+            TRY_CAST(IDAtracacao AS DOUBLE) AS IDAtracacao,
+            {peso_expr}                     AS peso_total,
+            {teu_expr}                      AS teu_total,
+            COUNT(*)                        AS n_cargas,
+            {natureza_expr}                 AS natureza_top,
+            {sentido_expr}                  AS sentido_top
+        FROM read_parquet('{glob_carga}', hive_partitioning=true, union_by_name=true)
+        WHERE IDAtracacao IS NOT NULL
+        GROUP BY TRY_CAST(IDAtracacao AS DOUBLE)
+    """).df()
+
+    # Peso conteinerizado: soma VLPesoCargaBruta onde TEU > 0 (evita JOIN de 100M linhas)
+    if teu_col and peso_col:
+        cont_grp = duckdb.execute(f"""
+            SELECT
+                TRY_CAST(IDAtracacao AS DOUBLE) AS IDAtracacao,
+                SUM(CASE WHEN TRY_CAST("{teu_col}" AS DOUBLE) > 0
+                         THEN TRY_CAST("{peso_col}" AS DOUBLE) ELSE 0 END) AS peso_cont
+            FROM read_parquet('{glob_carga}', hive_partitioning=true, union_by_name=true)
+            WHERE IDAtracacao IS NOT NULL
+            GROUP BY TRY_CAST(IDAtracacao AS DOUBLE)
+        """).df()
         grp = grp.merge(cont_grp, on="IDAtracacao", how="left")
         grp["peso_cont"] = grp["peso_cont"].fillna(0)
-    except FileNotFoundError:
+    else:
         grp["peso_cont"] = 0.0
 
+    log.info("    → carga_por_atracacao: %d atracações", len(grp))
     return grp
 
 
@@ -147,23 +181,46 @@ def build_taxa_ocupacao_anual() -> pd.DataFrame:
         log.warning("  TaxaOcupacao Silver não encontrado — pulando")
         return pd.DataFrame()
 
-    taxa["Ano"] = pd.to_numeric(taxa.get("Ano", None), errors="coerce").astype("Int64")
+    log.info("  Colunas disponíveis: %s", taxa.columns.tolist())
 
-    # Detecta colunas numéricas disponíveis
-    num_cols = taxa.select_dtypes(include="float64").columns.tolist()
-    log.info("  Colunas numéricas detectadas: %s", num_cols)
+    # Ano: aceita "Ano", "ano", "AnoTaxaOcupacao" etc.
+    ano_col = _detect_col(taxa.columns.tolist(),
+                          ["Ano", "ano", "AnoTaxaOcupacao", "ANO"])
+    if ano_col is None:
+        log.warning("  Coluna de ano não encontrada em TaxaOcupacao")
+        return pd.DataFrame()
+    taxa["Ano"] = pd.to_numeric(taxa[ano_col], errors="coerce")
+    taxa = taxa[taxa["Ano"].notna()].copy()
+    taxa["Ano"] = taxa["Ano"].astype(int)
 
-    # Agrupamento flexível por porto e ano
-    id_cols = [c for c in ["Porto Atracação", "Complexo Portuário", "Ano"] if c in taxa.columns]
-    if not id_cols:
-        log.warning("  Colunas de agrupamento não encontradas em TaxaOcupacao")
-        return taxa
+    # Porto/Complexo: aceita qualquer coluna com "Porto", "Complexo", "Instalacao" no nome
+    all_cols = taxa.columns.tolist()
+    porto_col = _detect_col(all_cols, ["Porto Atracação", "Complexo Portuário",
+                                        "NomeComplexo", "Instalacao", "Porto",
+                                        "IDComplexo", "Complexo"])
+    if porto_col is None:
+        # Última tentativa: qualquer coluna string não-ano
+        str_cols = taxa.select_dtypes(include="object").columns.tolist()
+        porto_col = str_cols[0] if str_cols else None
 
+    num_cols = taxa.select_dtypes(include="number").columns.tolist()
+    num_cols = [c for c in num_cols if c != "Ano" and "ID" not in c and "Dia" not in c]
+    log.info("  Colunas numéricas: %s | Porto col: %s", num_cols, porto_col)
+
+    if not num_cols:
+        log.warning("  Nenhuma coluna numérica útil encontrada")
+        return pd.DataFrame()
+
+    id_cols = ["Ano"] + ([porto_col] if porto_col else [])
     agg_dict = {col: "mean" for col in num_cols if col not in id_cols}
     if not agg_dict:
-        return taxa
+        return pd.DataFrame()
 
     grp = taxa.groupby(id_cols).agg(agg_dict).reset_index()
+    # Normaliza para 0–1 se os valores forem em minutos (>1000 = provavelmente minutos/dia)
+    for col in num_cols:
+        if col in grp.columns and grp[col].median() > 100:
+            grp[col] = (grp[col] / 1440).clip(0, 1)  # minutos → fração do dia
     return grp
 
 
@@ -177,7 +234,9 @@ def build_paralisacoes_por_atracacao() -> pd.DataFrame:
         return pd.DataFrame()
 
     par["IDAtracacao"] = pd.to_numeric(par["IDAtracacao"], errors="coerce")
-    par["TParalisacao"] = pd.to_numeric(par.get("TParalisacao", 0), errors="coerce").fillna(0)
+    if "TParalisacao" not in par.columns:
+        par["TParalisacao"] = 0.0
+    par["TParalisacao"] = pd.to_numeric(par["TParalisacao"], errors="coerce").fillna(0)
 
     grp = par.groupby("IDAtracacao").agg(
         n_paralisacoes    = ("IDAtracacao", "count"),
@@ -191,15 +250,44 @@ def build_carga_hidrovia_anual() -> pd.DataFrame:
     """Movimentação anual em hidrovias."""
     log.info("Construindo: carga_hidrovia_anual")
     hidrovia = _read_silver("Carga_Hidrovia")
-    hidrovia["Ano"] = pd.to_numeric(hidrovia.get("Ano", None), errors="coerce").astype("Int64")
-    hidrovia["ValorMovimentado"] = pd.to_numeric(
-        hidrovia.get("ValorMovimentado", 0), errors="coerce"
-    ).fillna(0)
 
-    id_cols = [c for c in ["Hidrovia", "Região Geográfica", "UF", "Ano"] if c in hidrovia.columns]
+    log.info("  Colunas disponíveis: %s", hidrovia.columns.tolist())
+
+    # Ano: "Ano", "ano" (partição hive), "AnoMovimento" etc.
+    ano_col = _detect_col(hidrovia.columns.tolist(), ["Ano", "ano", "AnoMovimento"])
+    if ano_col is None:
+        log.warning("  Coluna de ano não encontrada em Carga_Hidrovia")
+        return pd.DataFrame()
+    hidrovia["Ano"] = pd.to_numeric(hidrovia[ano_col], errors="coerce")
+    hidrovia = hidrovia[hidrovia["Ano"].notna()].copy()
+    hidrovia["Ano"] = hidrovia["Ano"].astype(int)
+
+    # Detecta coluna de valor
+    all_cols = hidrovia.columns.tolist()
+    val_col = _detect_col(all_cols, ["ValorMovimentado", "VLMovimentado",
+                                      "Peso Bruto (t)", "VLPeso", "QTMovimentado"])
+    if val_col is None:
+        num_candidates = hidrovia.select_dtypes(include="number").columns.tolist()
+        val_col = next((c for c in num_candidates
+                        if "ID" not in c and "Ano" not in c and "ano" not in c), None)
+
+    if val_col is None:
+        log.warning("  Coluna de valor não encontrada em Carga_Hidrovia — pulando")
+        return pd.DataFrame()
+
+    log.info("  Coluna de valor detectada: %s", val_col)
+    hidrovia[val_col] = pd.to_numeric(hidrovia[val_col], errors="coerce").fillna(0)
+
+    # Colunas de agrupamento — aceita o que existir
+    id_candidates = ["Hidrovia", "hidrovia", "NomeHidrovia",
+                     "Região Geográfica", "UF", "Ano"]
+    id_cols = [c for c in id_candidates if c in all_cols]
+    if "Ano" not in id_cols:
+        id_cols.append("Ano")
+
     grp = hidrovia.groupby(id_cols).agg(
-        tonelagem_total=("ValorMovimentado", "sum"),
-        n_registros    =("ValorMovimentado", "count"),
+        tonelagem_total=(val_col, "sum"),
+        n_registros    =(val_col, "count"),
     ).reset_index()
     return grp
 

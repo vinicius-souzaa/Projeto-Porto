@@ -109,7 +109,7 @@ def _quality_score(df: pd.DataFrame, tipo: str, ano: int) -> dict:
     # 4. Taxa de nulos < 50% nas colunas numéricas
     num_cols = df.select_dtypes(include="float64").columns
     if len(num_cols) > 0:
-        taxa_media = df[num_cols].isna().mean().mean()
+        taxa_media = float(df[num_cols].isna().mean().mean())
         checks["nulos_numericos_ok"] = taxa_media < 0.5
     else:
         checks["nulos_numericos_ok"] = None
@@ -153,9 +153,11 @@ def _read_txt(arquivo: Path, tipo: str) -> pd.DataFrame | None:
     df = _fix_numericas(df, conhecidas)
 
     # Auto-detecção de numéricas extras (para TaxaOcupacao, CargaAreas, etc.)
+    if conhecidas:
+        log.info("    Config numéricas: %s", conhecidas)
     extras = _autodetect_numericas(df, conhecidas)
     if extras:
-        log.info("    Auto-detectadas numéricas: %s", extras)
+        log.info("    Auto-detectadas extras: %s", extras)
         df = _fix_numericas(df, extras)
 
     # Strings: strip e None para nulos
