@@ -190,6 +190,91 @@ def _features_carga(master: pd.DataFrame) -> pd.DataFrame:
     return master
 
 
+def _features_navio(master: pd.DataFrame) -> pd.DataFrame:
+    """
+    Junta características estáticas do navio via N° do IMO → ships_imo.parquet
+    Gerado pelo script 06_enrich_imo.py (Equasis).
+    Colunas adicionadas: ship_type, ship_dwt, ship_gt, ship_loa_m, ship_beam_m,
+                         ship_built, ship_age, ship_flag
+    """
+    from pipeline.config import FEATURES
+    ships_path = FEATURES / "ships_imo.parquet"
+    if not ships_path.exists():
+        log.info("  ships_imo.parquet não encontrado — execute 06_enrich_imo.py")
+        return master
+
+    ships = pd.read_parquet(ships_path, engine="pyarrow")
+    ships["imo"] = pd.to_numeric(ships["imo"], errors="coerce").astype("Int64")
+
+    if "N° do IMO" not in master.columns:
+        log.info("  Coluna 'N° do IMO' não encontrada no master — pulando enriquecimento IMO")
+        return master
+
+    master["imo_num"] = pd.to_numeric(master["N° do IMO"], errors="coerce").astype("Int64")
+    master = master.merge(ships, left_on="imo_num", right_on="imo", how="left")
+
+    # Deriva ship_age a partir do ano de atracação
+    if "ship_built" in master.columns and "Ano" in master.columns:
+        master["ship_age"] = pd.to_numeric(master["Ano"], errors="coerce") - master["ship_built"]
+        master["ship_age"] = master["ship_age"].clip(0, 60)  # sanidade
+
+    n_enrich = master["ship_dwt"].notna().sum()
+    log.info("  Navios enriquecidos com IMO: %d/%d (%.0f%%)",
+             n_enrich, len(master), 100 * n_enrich / len(master))
+    return master
+
+
+def _features_clima(master: pd.DataFrame) -> pd.DataFrame:
+    """
+    Junta dados climáticos INMET por (porto, data) → weather_porto.parquet
+    Gerado pelo script 07_enrich_weather.py.
+    Colunas adicionadas: wind_speed_ms, precipitation_mm, temp_c, humidity_pct
+    """
+    from pipeline.config import FEATURES
+    weather_path = FEATURES / "weather_porto.parquet"
+    if not weather_path.exists():
+        log.info("  weather_porto.parquet não encontrado — execute 07_enrich_weather.py")
+        return master
+
+    weather = pd.read_parquet(weather_path, engine="pyarrow")
+    weather["data"]  = pd.to_datetime(weather["data"], errors="coerce").dt.date
+    weather["porto"] = weather["porto"].str.upper().str.strip()
+
+    if "Data Atracação" not in master.columns or "Porto Atracação" not in master.columns:
+        log.info("  Colunas de data/porto não encontradas — pulando enriquecimento climático")
+        return master
+
+    master["_data_atra"]  = pd.to_datetime(
+        master["Data Atracação"], format="%d/%m/%Y %H:%M:%S", errors="coerce"
+    ).dt.date
+    master["_porto_upper"] = master["Porto Atracação"].str.upper().str.strip()
+
+    # Match parcial: nome do porto ANTAQ pode conter mais texto que a chave
+    # ex: "PORTO DE SANTOS" → match com "SANTOS"
+    def _match_porto(nome: str) -> str | None:
+        if not isinstance(nome, str):
+            return None
+        for key in weather["porto"].unique():
+            if key in nome or nome in key:
+                return key
+        return None
+
+    master["_porto_key"] = master["_porto_upper"].apply(_match_porto)
+
+    master = master.merge(
+        weather.rename(columns={"porto": "_porto_key", "data": "_data_atra"}),
+        on=["_porto_key", "_data_atra"],
+        how="left",
+    )
+    master.drop(columns=["_data_atra", "_porto_upper", "_porto_key", "ano"],
+                errors="ignore", inplace=True)
+
+    n_enrich = master["wind_speed_ms"].notna().sum()
+    log.info("  Atracações com dados climáticos: %d/%d (%.0f%%)",
+             n_enrich, len(master), 100 * n_enrich / len(master))
+    return master
+
+
 def _encode_categoricas(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
     """Label-encode colunas categóricas e salva mapeamento para uso no modelo."""
     encoders = {}
@@ -224,6 +309,12 @@ def main():
     log.info("Derivando features de carga...")
     master = _features_carga(master)
 
+    log.info("Juntando características dos navios (IMO → Equasis)...")
+    master = _features_navio(master)
+
+    log.info("Juntando dados climáticos (INMET)...")
+    master = _features_clima(master)
+
     # Colunas categóricas para encoding
     cat_cols = [
         "Tipo de Navegação da Atracação",
@@ -232,6 +323,9 @@ def main():
         "sentido_top",
         "Região Geográfica",
         "UF",
+        # Enriquecimento IMO (quando disponível)
+        "ship_type",
+        "ship_flag",
     ]
     log.info("Codificando categóricas: %s", cat_cols)
     master, encoders = _encode_categoricas(master, cat_cols)
@@ -246,6 +340,11 @@ def main():
         "n_atracacoes_porto_ano",
         "taxa_ocupacao_media",
         "TEstadia_media_3a", "TOperacao_media_3a", "TEsperaAtracacao_media_3a",
+        # Características do navio (06_enrich_imo.py — quando disponível)
+        "ship_type", "ship_dwt", "ship_gt", "ship_loa_m", "ship_beam_m",
+        "ship_age", "ship_flag",
+        # Dados climáticos (07_enrich_weather.py — quando disponível)
+        "wind_speed_ms", "precipitation_mm", "temp_c", "humidity_pct",
         # Códigos categóricos
         *[c + "_cod" for c in cat_cols if c + "_cod" in master.columns],
         # Targets
