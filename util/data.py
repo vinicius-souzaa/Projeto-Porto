@@ -35,11 +35,13 @@ def _hf_path(remote: str) -> Path:
 
     try:
         from huggingface_hub import hf_hub_download
+        hf_token = os.environ.get("HF_TOKEN")  # opcional — dataset é público
         tmp = hf_hub_download(
             repo_id=HF_REPO,
             repo_type=HF_REPO_TYPE,
             filename=remote,
             local_dir=str(_CACHE),
+            token=hf_token,
         )
         return Path(tmp)
     except Exception as e:
